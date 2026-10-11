@@ -1,0 +1,16 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+psycopg2-binary==2.9.9
+pydantic==2.9.0
+qdrant-client==1.11.0
+neo4j==5.25.0
+fastembed==0.5.1
+
+# === LangGraph Agent 依赖（2026-06-17 追加） ===
+# langchain-core: 工具(@tool)、消息抽象、Runnable 协议
+# langchain-openai: OpenAI 兼容客户端（用来连火山方舟 Coding Plan）
+# langgraph: StateGraph + ToolNode，ReAct 控制流编排
+# 版本下限保证 tool calling / add_messages reducer 行为稳定
+langchain-core>=0.3.0,<0.4
+langchain-openai>=0.2.0,<0.3
+langgraph>=0.2.40,<0.3

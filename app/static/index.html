@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地质数据智能检索 Demo</title>
+<link rel="stylesheet" href="/static/leaflet.css" />
+<script src="/static/leaflet.js"></script>
+<script src="/static/vis-network.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Microsoft YaHei', sans-serif; background: #0f172a; color: #e2e8f0; }
+.header { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); padding: 20px 30px; border-bottom: 1px solid #334155; }
+.header h1 { font-size: 22px; color: #60a5fa; }
+.header p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+.container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+.panel { background: #1e293b; border-radius: 10px; padding: 16px; border: 1px solid #334155; }
+.panel h2 { font-size: 15px; color: #60a5fa; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.panel h2::before { content: ''; display: inline-block; width: 4px; height: 16px; background: #60a5fa; border-radius: 2px; }
+#map { height: 400px; border-radius: 8px; z-index: 1; }
+.full-width { grid-column: 1 / -1; }
+.search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-box input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+.search-box button { padding: 10px 20px; border-radius: 8px; border: none; background: #3b82f6; color: white; cursor: pointer; font-size: 14px; }
+.search-box button:hover { background: #2563eb; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; background: #0f172a; color: #94a3b8; font-weight: 500; position: sticky; top: 0; }
+td { padding: 8px; border-top: 1px solid #1e293b; color: #cbd5e1; }
+.table-wrap { max-height: 280px; overflow-y: auto; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+.tag-li { background: #1e3a5f; color: #60a5fa; }
+.tag-ta { background: #3b1f4e; color: #c084fc; }
+.tag-doc { background: #1a3a2a; color: #4ade80; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: #0f172a; border-radius: 8px; padding: 14px; text-align: center; }
+.stat-card .num { font-size: 28px; font-weight: 700; color: #60a5fa; }
+.stat-card .label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+.result-item { background: #0f172a; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+.result-item .title { color: #60a5fa; font-weight: 500; }
+.result-item .score { color: #4ade80; font-size: 12px; }
+.result-item .content { color: #94a3b8; font-size: 13px; margin-top: 6px; line-height: 1.6; }
+#kg-network { height: 400px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; }
+.kg-info { margin-top: 10px; padding: 10px; background: #0f172a; border-radius: 8px; font-size: 13px; color: #94a3b8; line-height: 1.8; }
+.kg-info b { color: #60a5fa; }
+.example-queries { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.example-queries span { padding: 4px 10px; border-radius: 6px; background: #1e3a5f; color: #60a5fa; font-size: 12px; cursor: pointer; }
+.example-queries span:hover { background: #2563eb; color: white; }
+.agent-panel { background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 32%), linear-gradient(135deg, #13233f 0%, #1e293b 48%, #102036 100%); border-color: #2563eb; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45); }
+.agent-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
+.agent-head h2 { margin-bottom: 6px; }
+.agent-subtitle { color: #94a3b8; font-size: 13px; line-height: 1.7; }
+.agent-badge { flex: none; padding: 6px 10px; border: 1px solid #2563eb; border-radius: 999px; color: #93c5fd; background: rgba(15, 23, 42, 0.65); font-size: 12px; }
+.agent-layout { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.4fr; gap: 14px; }
+.agent-input-box, .agent-answer-box { background: rgba(15, 23, 42, 0.78); border: 1px solid #334155; border-radius: 10px; padding: 12px; }
+.agent-input-box textarea { width: 100%; min-height: 108px; resize: vertical; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #020617; color: #e2e8f0; font-size: 14px; line-height: 1.6; outline: none; }
+.agent-input-box textarea:focus { border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.18); }
+.agent-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.agent-actions button { padding: 10px 18px; border-radius: 8px; border: none; background: #3b82f6; color: #fff; cursor: pointer; font-size: 14px; }
+.agent-actions button:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
+.agent-status { color: #94a3b8; font-size: 12px; }
+.agent-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.agent-examples span { padding: 5px 10px; border-radius: 999px; background: rgba(30,58,95,0.85); color: #93c5fd; font-size: 12px; cursor: pointer; border: 1px solid rgba(96,165,250,0.25); }
+.agent-examples span:hover { background: #2563eb; color: white; }
+.agent-answer-box { min-height: 190px; }
+.agent-answer-title { color: #4ade80; font-weight: 600; margin-bottom: 8px; }
+.agent-answer { color: #cbd5e1; line-height: 1.75; font-size: 14px; white-space: normal; }
+.agent-answer h3 { color: #60a5fa; font-size: 15px; margin: 12px 0 6px; }
+.agent-answer p { margin: 6px 0; }
+.agent-answer ul { margin-left: 18px; }
+.agent-meta { margin-top: 10px; color: #94a3b8; font-size: 12px; border-top: 1px solid #334155; padding-top: 8px; }
+.agent-error { color: #f87171; }
+@media (max-width: 900px) { .container { grid-template-columns: 1fr; } .agent-layout { grid-template-columns: 1fr; } .agent-head { flex-direction: column; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🗺️ 地质数据智能检索 Demo</h1>
+  <p>PostGIS 空间检索 + Qdrant 向量语义检索 + Neo4j 知识图谱 — 面向AI探矿智能体的多模态数据基础设施</p>
+</div>
+
+<div class="container">
+  <div class="panel full-width stats" id="stats"></div>
+
+  <div class="panel full-width agent-panel" id="agent-panel">
+    <div class="agent-head">
+      <div>
+        <h2>AI 地质助手（LangGraph Agent）</h2>
+        <div class="agent-subtitle">一个中心智能体自动协调 PostGIS 空间检索、Qdrant 语义检索、Neo4j 知识图谱和化探/钻孔工具，适合直接问综合性地质问题。</div>
+      </div>
+      <div class="agent-badge">ReAct + 6 Tools</div>
+    </div>
+    <div class="agent-layout">
+      <div class="agent-input-box">
+        <textarea id="agent-question" placeholder="例如：宜春钽铌矿有哪些钻孔？附近有什么矿区？相关提锂工艺文档有哪些？">宜春钽铌矿有哪些钻孔？另外帮我看看相关知识图谱实体</textarea>
+        <div class="agent-actions">
+          <button id="agent-send" onclick="askAgent()">询问 AI 助手</button>
+          <span class="agent-status" id="agent-status">可直接输入自然语言问题</span>
+        </div>
+        <div class="agent-examples">
+          <span onclick="setAgentQuestion('系统里有哪些跟锂矿提取工艺相关的文档？')">提锂工艺文档</span>
+          <span onclick="setAgentQuestion('宜春钽铌矿有哪些钻孔？并总结锂钽铌品位情况')">宜春钻孔品位</span>
+          <span onclick="setAgentQuestion('帮我比较宜春锂矿相关矿区、钻孔和知识图谱关系')">多源综合分析</span>
+          <span onclick="setAgentQuestion('花桥锂矿附近有哪些钻孔和语义文档？')">矿区附近资料</span>
+        </div>
+      </div>
+      <div class="agent-answer-box">
+        <div class="agent-answer-title">助手回答</div>
+        <div id="agent-answer" class="agent-answer">等待提问。AI 助手会根据问题自主选择数据库工具，并把结果整理成中文分析。</div>
+        <div id="agent-meta" class="agent-meta">工具调用：-；消息轮次：-</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>矿区地图</h2>
+    <div id="map"></div>
+  </div>
+
+  <div class="panel">
+    <h2>钻孔数据</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>孔号</th><th>项目</th><th>深度</th><th>岩性</th><th>Li品位</th></tr></thead>
+        <tbody id="drillhole-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>语义检索（向量数据库 + Embedding）</h2>
+    <div class="search-box">
+      <input id="semantic-query" placeholder="输入地质问题" value="宜春锂矿成矿条件" />
+      <button onclick="semanticSearch()">语义搜索</button>
+    </div>
+    <div class="example-queries">
+      <span onclick="setQuery('宜春锂矿成矿条件')">宜春锂矿成矿条件</span>
+      <span onclick="setQuery('怎么从锂云母提锂')">怎么从锂云母提锂</span>
+      <span onclick="setQuery('钨矿找矿标志')">钨矿找矿标志</span>
+      <span onclick="setQuery('铌钽品位影响因素')">铌钽品位影响因素</span>
+    </div>
+    <div id="semantic-results" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <h2>空间检索（PostGIS）</h2>
+    <div class="search-box">
+      <input id="spatial-lng" placeholder="经度" value="114.40" style="width:80px" />
+      <input id="spatial-lat" placeholder="纬度" value="27.90" style="width:80px" />
+      <input id="spatial-radius" placeholder="半径(m)" value="10000" style="width:80px" />
+      <button onclick="spatialSearch()">附近钻孔</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>孔号</th><th>距离</th><th>Li品位</th><th>岩性</th></tr></thead>
+        <tbody id="spatial-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel full-width">
+    <h2>地质知识图谱（Neo4j 图查询）</h2>
+    <div class="search-box">
+      <input id="kg-query" placeholder="输入实体名查询关系，如：宜春" value="宜春" />
+      <button onclick="queryKnowledgeGraph()">图查询</button>
+    </div>
+    <div id="kg-network"></div>
+    <div id="kg-info" class="kg-info">点击节点查看详细信息，拖拽调整布局</div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+function setQuery(q) {
+  document.getElementById('semantic-query').value = q;
+  semanticSearch();
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch(API + '/stats');
+    const d = await r.json();
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card"><div class="num">${d.drillholes}</div><div class="label">钻孔数</div></div>
+      <div class="stat-card"><div class="num">${d.geochemistry_samples}</div><div class="label">化探样品</div></div>
+      <div class="stat-card"><div class="num">${d.mining_areas}</div><div class="label">矿区</div></div>
+      <div class="stat-card"><div class="num">${d.documents}</div><div class="label">地质文档</div></div>
+    `;
+  } catch(e) { console.error(e); }
+}
+
+async function loadMap() {
+  const map = L.map('map').setView([27.88, 114.55], 10);
+  L.tileLayer('https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { attribution: '&copy; 高德地图', subdomains: [] }).addTo(map);
+
+  try {
+    const [drillRes, areaRes] = await Promise.all([fetch(API + '/drillholes'), fetch(API + '/mining-areas')]);
+    const drillData = await drillRes.json();
+    const areaData = await areaRes.json();
+
+    areaData.data.forEach(a => {
+      L.geoJSON(a.boundary_geojson, { style: { color: '#3b82f6', weight: 2, fillOpacity: 0.15 } })
+        .bindPopup(`<b>${a.name}</b><br>类型: ${a.mine_type}<br>面积: ${a.area_km2}km²<br>状态: ${a.status}`)
+        .addTo(map);
+    });
+
+    drillData.data.forEach(d => {
+      const liLabel = d.ore_grade_li ? `<br>Li₂O: ${d.ore_grade_li}%` : '';
+      L.circleMarker([d.lat, d.lng], { radius: 6, fillColor: '#f59e0b', color: '#92400e', weight: 1, fillOpacity: 0.8 })
+        .bindPopup(`<b>${d.hole_id}</b><br>${d.project_name}<br>深度: ${d.depth}m${liLabel}`)
+        .addTo(map);
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function loadDrillholes() {
+  try {
+    const r = await fetch(API + '/drillholes');
+    const d = await r.json();
+    document.getElementById('drillhole-table').innerHTML = d.data.map(row => `
+      <tr>
+        <td><b>${row.hole_id}</b></td>
+        <td>${row.project_name}</td>
+        <td>${row.depth}m</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.lithology || '-'}</td>
+        <td><span class="tag tag-li">${row.ore_grade_li || '-'}%</span></td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function semanticSearch() {
+  const query = document.getElementById('semantic-query').value;
+  document.getElementById('semantic-results').innerHTML = '<p style="color:#94a3b8">🔍 正在用 BAAI/bge-small-zh-v1.5 模型编码查询向量...</p>';
+  try {
+    const r = await fetch(API + '/search/semantic', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit: 5 })
+    });
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById('semantic-results').innerHTML = `<p style="color:#f87171">❌ ${d.error}</p><p style="color:#94a3b8;font-size:12px">${d.hint || ''}</p>`;
+      return;
+    }
+    const modeLabel = d.mode === 'semantic_vector_search' ? '✅ 真实向量语义匹配' : '⚠️ 关键词后备匹配';
+    const modelLabel = d.model ? ` | 模型: ${d.model}` : '';
+    document.getElementById('semantic-results').innerHTML =
+      `<p style="color:#94a3b8;font-size:12px;margin-bottom:8px">${modeLabel}${modelLabel}</p>` +
+      d.results.map(r => `
+      <div class="result-item">
+        <span class="title">${r.payload.title}</span>
+        <span class="tag tag-doc" style="margin-left:8px">${r.payload.doc_type}</span>
+        <span class="score">相似度: ${(r.score * 100).toFixed(1)}%</span>
+        <div class="content">${r.payload.content}</div>
+      </div>
+    `).join('') || '<p style="color:#94a3b8">无结果</p>';
+  } catch(e) { document.getElementById('semantic-results').innerHTML = `<p style="color:#f87171">${e.message}</p>`; }
+}
+
+async function spatialSearch() {
+  const lng = parseFloat(document.getElementById('spatial-lng').value);
+  const lat = parseFloat(document.getElementById('spatial-lat').value);
+  const radius = parseInt(document.getElementById('spatial-radius').value);
+  try {
+    const r = await fetch(API + `/drillholes/nearby?lng=${lng}&lat=${lat}&radius_m=${radius}`);
+    const d = await r.json();
+    document.getElementById('spatial-table').innerHTML = d.data.map(row => `
+      <tr>
+        <td><b>${row.hole_id}</b></td>
+        <td>${row.distance_m ? Math.round(row.distance_m) + 'm' : '-'}</td>
+        <td><span class="tag tag-li">${row.ore_grade_li || '-'}%</span></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.lithology || '-'}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">范围内无钻孔</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+let kgNetwork = null;
+
+async function loadKnowledgeGraph() {
+  try {
+    const r = await fetch(API + '/knowledge-graph/sample');
+    const d = await r.json();
+    renderKG(d.entities, d.relations);
+  } catch(e) { console.error(e); }
+}
+
+async function queryKnowledgeGraph() {
+  const entity = document.getElementById('kg-query').value;
+  if (!entity) return;
+  document.getElementById('kg-info').innerHTML = '<span style="color:#94a3b8">🔍 查询中...</span>';
+  try {
+    const r = await fetch(API + `/knowledge-graph/query?entity=${encodeURIComponent(entity)}&depth=2`);
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById('kg-info').innerHTML = `<span style="color:#f87171">❌ ${d.error}</span>`;
+      return;
+    }
+    const edges = d.edges.map(e => ({
+      from: e.source, to: e.target,
+      label: Array.isArray(e.relations) ? e.relations.join('→') : e.relations,
+      arrows: 'to', color: { color: '#4ade80', highlight: '#22c55e' },
+      font: { color: '#4ade80', size: 11, strokeWidth: 0 },
+    }));
+    renderKG(d.nodes, edges);
+    document.getElementById('kg-info').innerHTML =
+      `<b>Cypher查询</b>: MATCH path=(a)-[*1..2]->(b) WHERE a.name CONTAINS "${entity}" RETURN path<br>` +
+      `<b>结果</b>: ${d.nodes.length} 个实体, ${d.edges.length} 条关系`;
+  } catch(e) {
+    document.getElementById('kg-info').innerHTML = `<span style="color:#f87171">${e.message}</span>`;
+  }
+}
+
+function setAgentQuestion(question) {
+  document.getElementById('agent-question').value = question;
+  document.getElementById('agent-question').focus();
+}
+
+function renderAgentAnswer(text) {
+  const safe = String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return safe
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/^- (.*)$/gm, '<li>$1</li>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^(.*)$/s, '<p>$1</p>')
+    .replace(/<p><li>/g, '<ul><li>')
+    .replace(/<\/li><\/p>/g, '</li></ul>');
+}
+
+async function askAgent() {
+  const question = document.getElementById('agent-question').value.trim();
+  const button = document.getElementById('agent-send');
+  const status = document.getElementById('agent-status');
+  const answer = document.getElementById('agent-answer');
+  const meta = document.getElementById('agent-meta');
+  if (!question) {
+    status.textContent = '请先输入问题';
+    status.className = 'agent-status agent-error';
+    return;
+  }
+  button.disabled = true;
+  status.className = 'agent-status';
+  status.textContent = 'Agent 正在规划工具调用...';
+  answer.innerHTML = '⏳ 正在调用 LangGraph Agent，可能会依次查询 PostGIS、Qdrant、Neo4j 等数据源...';
+  meta.textContent = '工具调用：进行中；消息轮次：进行中';
+  try {
+    const r = await fetch(API + '/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) {
+      throw new Error(d.error || `HTTP ${r.status}`);
+    }
+    answer.innerHTML = renderAgentAnswer(d.answer);
+    meta.textContent = `工具调用：${d.tool_calls_count ?? '-'}；消息轮次：${d.messages_count ?? '-'}`;
+    status.textContent = '回答完成';
+  } catch(e) {
+    answer.innerHTML = `<span class="agent-error">❌ ${e.message}</span>`;
+    meta.textContent = '工具调用：失败；消息轮次：失败';
+    status.className = 'agent-status agent-error';
+    status.textContent = '请求失败，请稍后重试或检查 /agent/health';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderKG(entities, relations) {
+  const typeColors = {
+    '矿区': '#3b82f6', '矿种': '#f59e0b', '矿床类型': '#c084fc',
+    '蚀变': '#4ade80', '地层': '#f87171'
+  };
+  const nodes = new vis.DataSet(entities.map(e => ({
+    id: e.id || e.name,
+    label: e.name,
+    color: {
+      background: (typeColors[e.type] || '#475569') + '33',
+      border: typeColors[e.type] || '#475569',
+      highlight: { background: (typeColors[e.type] || '#475569') + '66', border: typeColors[e.type] || '#475569' },
+    },
+    font: { color: '#e2e8f0', size: 13 },
+    shape: 'dot',
+    size: e.type === '矿区' ? 25 : (e.type === '矿种' ? 20 : 15),
+    title: `${e.type}: ${e.name}`,
+  })));
+
+  const edgesArr = relations.map(r => {
+    const src = r.from || r.source || r.src;
+    const tgt = r.to || r.target || r.tgt;
+    const rel = r.label || r.relation || '';
+    return {
+      from: src, to: tgt,
+      label: Array.isArray(rel) ? rel.join('→') : rel,
+      arrows: 'to',
+      color: { color: '#4ade8088', highlight: '#4ade80' },
+      font: { color: '#4ade80', size: 10, strokeWidth: 0 },
+    };
+  });
+  const edges = new vis.DataSet(edgesArr);
+
+  const container = document.getElementById('kg-network');
+  const data = { nodes, edges };
+  const options = {
+    physics: {
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: { gravitationalConstant: -80, springLength: 120 },
+      stabilization: { iterations: 100 },
+    },
+    interaction: { hover: true, tooltipDelay: 200, dragNodes: true, zoomView: true },
+  };
+  if (kgNetwork) kgNetwork.destroy();
+  kgNetwork = new vis.Network(container, data, options);
+
+  kgNetwork.on('click', function(params) {
+    if (params.nodes.length > 0) {
+      const nodeId = params.nodes[0];
+      const node = nodes.get(nodeId);
+      document.getElementById('kg-info').innerHTML =
+        `<b>${node.title}</b><br>点击节点可拖拽，滚轮缩放，输入实体名做图查询`;
+    }
+  });
+}
+
+loadStats();
+loadMap();
+loadDrillholes();
+loadKnowledgeGraph();
+semanticSearch();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== 环境变量 / 密钥（绝不提交）=====
+.env
+.env.*
+!.env.example
+
+# ===== 日志 =====
+*.log
+nohup.out
+
+# ===== 本地备份 / 临时文件 =====
+.backup*
+*.bak
+*.before-ai-assistant
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
